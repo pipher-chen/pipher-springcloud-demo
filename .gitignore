@@ -1,0 +1,36 @@
+# Maven
+target/
+*.ser
+*.ec
+
+# IntelliJ Idea
+.idea/
+out/
+*.ipr
+*.iws
+*.iml
+.mvn
+mvnw
+mvnw.cmd
+*.back
+
+# Eclipse
+.classpath
+.project
+.settings/
+.metadata/
+
+.DS_Store
+node_modules/
+dist/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+/04CODE/usedcar-platform/.idea/
+/04CODE/usedcar-platform/target/
+/.idea/
+/04CODE/usedcar-web/.idea/
+/04CODE/usedcar-web/node_modules/
+
+# gitext
+*.orig

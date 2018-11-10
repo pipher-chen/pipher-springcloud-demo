@@ -1,15 +1,18 @@
 server:
   port: 8001
 spring:
-  profiles:
-    active: native
+#  profiles:
+#    active: native
   application:
     name: microservice-config-server
   cloud:
     config:
       server:
-        native:
-          searchLocations: file:///D:/CodeSpace/pipher-springcloud-demo/config-repo
+        git:
+          uri: https://github.com/pipher-chen/config-repo
+          label: master
+#        native:
+#          searchLocations: file:///D:/CodeSpace/pipher-springcloud-demo/config-repo
 
 eureka:
   instance:

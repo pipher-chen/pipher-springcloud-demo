@@ -1,8 +1,8 @@
-package com.example.demo.service.impl;
+package com.example.demo.es.service.impl;
 
-import com.example.demo.dao.ItemRepo;
-import com.example.demo.model.Item;
-import com.example.demo.service.ItemService;
+import com.example.demo.es.dao.ItemRepo;
+import com.example.demo.es.model.Item;
+import com.example.demo.es.service.ItemService;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.sort.SortBuilders;
@@ -25,18 +25,18 @@ public class ItemServiceImpl implements ItemService {
     @Autowired
     private ItemRepo itemRepo;
 
-    @Override
-    public <T> boolean createIndex(Class<T> clazz) {
-
-        // 创建索引，会根据Item类的@Document注解信息来创建
-         return elasticsearchTemplate.createIndex(clazz);
-    }
-
-    @Override
-    public <T> boolean createMapping(Class<T> clazz) {
-        // 配置映射，会根据Item类中的id、Field等字段来自动完成映射
-        return elasticsearchTemplate.putMapping(clazz);
-    }
+//    @Override
+//    public <T> boolean createIndex(Class<T> clazz) {
+//
+//        // 创建索引，会根据Item类的@Document注解信息来创建
+//         return elasticsearchTemplate.createIndex(clazz);
+//    }
+//
+//    @Override
+//    public <T> boolean createMapping(Class<T> clazz) {
+//        // 配置映射，会根据Item类中的id、Field等字段来自动完成映射
+//        return elasticsearchTemplate.putMapping(clazz);
+//    }
 
 
     /**多条件查询

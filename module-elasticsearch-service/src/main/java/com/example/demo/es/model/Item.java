@@ -1,4 +1,4 @@
-package com.example.demo.model;
+package com.example.demo.es.model;
 
 
 import org.springframework.data.annotation.Id;
@@ -12,7 +12,7 @@ public class Item {
     @Id
     private Long id;
 
-//    @Field(type = FieldType.Text, analyzer = "ik_max_word")
+    @Field(type = FieldType.Text, analyzer = "smartcn")
     private String title; //标题
 
     @Field(type = FieldType.Keyword)

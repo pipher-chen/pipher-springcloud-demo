@@ -28,28 +28,28 @@
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter</artifactId>
 		</dependency>
-		<dependency>
-			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-web</artifactId>
-		</dependency>
+		<!--<dependency>-->
+			<!--<groupId>org.springframework.boot</groupId>-->
+			<!--<artifactId>spring-boot-starter-web</artifactId>-->
+		<!--</dependency>-->
 
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-data-elasticsearch</artifactId>
-			<!--<version>3.0.6.RELEASE</version>-->
 		</dependency>
 
 		<!--需要引入transport-netty3-client，否则会启动报错-->
 		<!--<dependency>-->
 			<!--<groupId>org.elasticsearch.plugin</groupId>-->
-			<!--<artifactId>transport-netty3-client</artifactId>-->
+			<!--<artifactId>transport-netty4-client</artifactId>-->
+			<!--&lt;!&ndash;<version>5.5.2</version>&ndash;&gt;-->
 			<!--<version>5.5.2</version>-->
 		<!--</dependency>-->
 
-		<!--<dependency>-->
-			<!--<groupId>net.java.dev.jna</groupId>-->
-			<!--<artifactId>jna-platform</artifactId>-->
-		<!--</dependency>-->
+		<dependency>
+			<groupId>net.java.dev.jna</groupId>
+			<artifactId>jna-platform</artifactId>
+		</dependency>
 
 		<dependency>
 			<groupId>org.projectlombok</groupId>
@@ -63,11 +63,6 @@
 			<version>20.0</version>
 		</dependency>
 
-		<dependency>
-			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-test</artifactId>
-			<scope>test</scope>
-		</dependency>
 	</dependencies>
 
 	<build>

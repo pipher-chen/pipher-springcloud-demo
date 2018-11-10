@@ -14,7 +14,7 @@ spring:
   cloud:
     config:
       profile: dev
-      label: dev
+      label: master
       discovery:
         enabled: true
         serviceId: MICROSERVICE-CONFIG-SERVER

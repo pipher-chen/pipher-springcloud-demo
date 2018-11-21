@@ -1,0 +1,24 @@
+server:
+  port: 8002
+
+eureka:
+  instance:
+    prefer-ip-address: true
+  client:
+    serviceUrl:
+      defaultZone: http://127.0.0.1:8000/eureka/
+
+spring:
+  profiles:
+    active: '@profiles.active@'
+  application:
+    name: api-elasticsearch-demo
+  cloud:
+    config:
+      profile: dev
+      label: master
+      discovery:
+        enabled: true
+        serviceId: MICROSERVICE-CONFIG-SERVER
+
+

@@ -512,5 +512,382 @@ es自带如下分词器
 #### Standard Analyzer ####
 默认分词器
 
-其组成：Tokenizer:Standar
+其组成：
+
+    Tokenizer:Standar
+    Token Filters:Standard,Lower case,Stop(disabled by default)
+
+其特性：
+
+    按词切分，支持多语言
+    小写处理
+
+#### Simple Analyzer ####
+其组成：
+    Tokenizer:Lower Case
+
+其特性：
+
+    按照非字母切分
+    小写处理
+
+
+#### Whitespace Analyzer ####
+其组成：
+    Tokenizer:Whitespace
+
+其特性：
+
+    按照空格切分
+
+#### Stop Analyzer ####
+Stop Word指的是语气助词等修饰性的词语，比如the、an、的、这等等
+
+其组成：
+
+    Tokenizer:Lower Case
+    Token Filters: Stop
+
+其特性：
+
+    相比Simple Analyzer多了Stop Word处理
+
+#### Keyword Analyzer ####
+其组成：
+
+    Tokenizer:Keyword
+
+其特性：
+
+    不分词，直接将输入作为一个单词输出
+
+#### Pattern Analyzer ####
+其组成：
+
+    Tokenizer:Keyword
+    Token Filters:Lower case,Stop(disable by default)
+
+其特性：
+
+    通过正则表达式自定义分割符
+    默认是\W+，即非字词的符号作为分隔符
+
+#### language Analyzer ####
+提供了30+常见语言的分词器
+
+#### 中文分词 ####
+难点
+
+    中文分词指的是将一个汉字序列切分成一个一个单独的词。在英文中，单词之间是以空格作为自然分界符，汉语中词没有一个形式上的分界符。
+   
+    上下文不同，分词结果迥异，比如交叉歧义问题，比如下面两种分词都合理：
+    乒乓球拍/卖/完了
+    乒乓球/拍卖/完了
+
+常见分词系统
+
+    IK：
+    实现中英文单词的切分，支持ik_smart、ik_maxword等模式
+    可以自定义词库，支持热更新分词词典
+
+    jieba:
+    python中最流行的分词系统，支持分词和词性标注
+    支持繁体字分词、自定义词典，并行分词等
+
+基于自然语言处理的分词系统
+
+    Hanlp:
+    由一系列模型与算法组成的Java工具包，目标是普及自然语言处理在生产环境中的应用
+
+    THULAC：
+    THU Lexical Analyzer for Chinese,由清华大学自然语言处理与社会人文计算实验室研制推出的一套中文词法分析工具包，具体中文分词和词性标注功能。
+
+### 自定义分词 ###
+自带的分词无法满足需求时，可以自定义分词通过自定义Character Filters、Tokenizer和Token Filter实现
+
+#### Character Filters ####
+    -在Tokenizer之前对原始文本进行处理，比如增加、删除或替换字符等
+    -自带的如下：
+       HTML Strip去除html标签和转换html实体
+       Mapping进行字符替换操作
+       Patter Replace进行正则匹配替代
+    -会影响后续tokenizer解析的position 和 offset 信息
      
+    Character Filters测试时可以采用如下api:
+    request:
+    POST _analyze
+    {
+     "tokenizer":"keyword",//keyword类型的tokenizer，可以直接看到输出结果
+      "char_filter":["html_strip"],//指明要使用的char_filter
+      "text":"<p>I&apos;m so <b> happy</b>!</p>"
+    }
+    
+    response:
+    {
+     "tokens":[
+        {
+         "koken":***
+                   I'm so happy!
+                 ***,
+         "start_offset":0,
+         "end_offset":32,
+         "type":"word",
+         "position":0
+        }
+      ]
+    }
+
+#### Tokenizer ####
+    -将原始文本按照一定规则切分为单词(term or token)
+    -自带的如下：
+        -standard按照单词进行分割
+        -letter按照非字符类进行分割
+        -whitespace按照空格进行分割
+        -UAX URL Email按照standard分割，但不会分割邮箱和url
+        -NGram 和 Edge NGram连词分割
+        -Path Hierarchy按照文件路径进行切割
+
+     Tokenizer测试时可以采用如下api:
+     **request:**
+     POST _analyzer
+     {
+      "tokenizer":"path_hierarchy",
+      "text":"/one/two/three"
+     }
+
+     response:
+     {
+      "tokens":[
+         {
+          "token":"/one",
+          "start_offset":0,
+          "end_offset":4,
+          "type":"word",
+          "position":0
+         },
+         {
+          "token":"/one/teo",
+          "start_offset":0,
+          "end_offset":8,
+          "type":"word",
+          "position":0
+         },
+         {
+          "token":"/one/two/three",
+          "start_offset":0,
+          "end_offset":14,
+          "type":"word",
+          "position":0
+         }
+      ]
+     }
+
+#### Token Filters ####   
+     -对于tokenizer输出的单词(term)进行增加、删除、修改等操作
+     -自带如下:
+         -lowercase将所有term转化为小写
+         -stop删除stop words
+         -NGram 和 Edge NGram连词分割
+
+     Filters测试时可以采用如下api：
+
+     **request：**
+     POST _analyze
+     {
+       "text":"a Hello,word!",
+       "tokenizer":"standard",
+       "filter":[
+            "stop", 
+            "lowercase",
+            {
+              "type":"ngram", 
+              "min_gram":4,
+              "max_gram":4
+            }
+          ]
+     }
+
+     **response**
+     {
+       "tokens":[
+          {
+            "token":"hell",
+            "start_offset":2,
+            "end_offset":7,
+            "type":"<ALPHANUM>",
+            "position":1
+          },
+          {
+            "token":"ello",
+            "start_offset":2,
+            "end_offset":7,
+            "type":"<ALPHANUM>",
+            "position":1
+          },
+          {
+            "token":"worl",
+            "start_offset":8,
+            "end_offset":13,
+            "type":"<ALPHANUM>",
+            "position":2
+          },
+          {
+            "token":"hell",
+            "start_offset":8,
+            "end_offset":13,
+            "type":"<ALPHANUM>",
+            "position":2
+          }
+       ]
+     }
+      
+#### 自定义分词api ####
+自定义分词需要在索引的配置中设定，如下所示：
+
+     PUT test_index
+     {
+       "settings":{
+            "analysis":{
+                 "char_filter":{},
+                 "tokenizer":{},
+                 "filter":{},
+                 "analyzer":{}
+
+               }
+          
+          }
+     }
+     分词配置，可以自定义：char_filter，tokenizer，filter，analyzer
+
+我们自定义如下的分词器
+
+Custom Analyzer:
+
+    Character Filter:Custom Mapping
+    Tokenizer:Custom Pattern
+    Token Filters:Lower case,Custom Stop
+
+    PUT test_index2
+    {
+	   "settings": {
+	    "analysis": {
+	      "analyzer": {
+	        "my_custom_analyzer": {
+	          "type": "custom",
+	          "char_filter": [
+	            "emoticons" 
+	          ],
+	          "tokenizer": "punctuation", 
+	          "filter": [
+	            "lowercase",
+	            "english_stop" 
+	          ]
+	        }
+	      },
+	      "tokenizer": {
+	        "punctuation": { 
+	          "type": "pattern",
+	          "pattern": "[ .,!?]"
+	        }
+	      },
+	      "char_filter": {
+	        "emoticons": { 
+	          "type": "mapping",
+	          "mappings": [
+	            ":) => _happy_",
+	            ":( => _sad_"
+	          ]
+	        }
+	      },
+	      "filter": {
+	        "english_stop": { 
+	          "type": "stop",
+	          "stopwords": "_english_"
+	        }
+	      }
+	    }
+	  }
+	}
+
+自定义分词验证
+    
+    POST test_index_2/_analyze
+	{
+	  "analyzer": "my_custom_analyzer",
+	  "text":     "I'm a :) person, and you?"
+	}
+    
+
+### 分词使用说明 ###
+分词会在如下两个时机使用
+
+    -创建或更新文档时(Index Time),会对相应的文档进行分词处理
+    -查询时(Search Time)，会对查询语句进行分词  
+
+#### 索引时分词 ####
+索引时分词是通过配置Index Mapping中每个字段的analyzer属性实现的，如下：
+
+    不指定分词时，使用默认standard
+    PUT test_index
+    {
+      "mappings":{
+           "doc":{ 
+                "properties":{
+                     "title":{
+	                    "type":"text",
+	                    "analyzer":"whitespace"//指定分词器
+                        }
+                   }
+              }
+         }
+    }  
+
+#### 查询时分词 ####
+查询时分词的指定方式如下几种：
+
+    查询的时候通过analyzer指定分词器
+    POST test_index/_search
+    {
+      "query":{
+          "match":{
+               "message":{
+                     "query":"hello",
+                     "analyzer":"standard"
+                  }
+             }
+         }
+    }
+
+    通过index mapping设置search_analyzer实现
+    PUT test_index
+    {
+      "mappings":{
+           "doc":{ 
+                "properties":{
+                     "title":{
+	                    "type":"text",
+	                    "analyzer":"whitespace",//指定分词器
+                         "search_analyzer":"standard"
+                        }
+                   }
+              }
+         }
+    }
+
+ps：一般不需要特别指定特定查询时分词器，直接使用索引时分词器即可，否则会出现无法匹配的情况   
+
+### 分词的使用意见 ###
+- 明确字段是否需要分词，不需要分词的字段就将type设置为keyword，可以节省空间和提高写性能
+- 善用_analyzer API，查看文档的具体分词结果
+- 动手测试
+
+# 第4章 Elasticsearch 篇之Mapping 设置 #
+
+    
+    
+
+
+    
+    
+   
+    

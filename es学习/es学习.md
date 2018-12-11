@@ -882,12 +882,493 @@ ps：一般不需要特别指定特定查询时分词器，直接使用索引时
 - 动手测试
 
 # 第4章 Elasticsearch 篇之Mapping 设置 #
+## Mapping ##
+类似数据库中的表结构定义，主要作用如下:
 
+- 定义Index下的字段名(Field Name)
+- 定义字段的类型，比如数值型、字符串型、布尔型等
+- 定义倒排索引相关配置，比如是否索引、记录position等
+
+## 自定义Mapping ##
+自定义Mapping的api如下所示：
     
+    **request**
+    PUT my_index
+    {
+     "mappings":{//mapping关键词
+          "doc":{//type名称
+               "properties":{
+                    "title":{//字段名称
+                         "type":"text"  //字段类型
+                       },
+                    "name":{
+                         "type":"keyword"
+                       },
+                    "age":{
+                         "type":"integer"
+                       },
+                  }
+             }
+
+        }
+    }
+
+Mapping中的字段类型一旦设定后，禁止直接修改，原因如下：
+>     Lucene实现的倒排索引生成后不允许修改
+
+重新建立新的索引，然后做reindex操作。
     
 
+允许新增字段
+通过dynamic参数来控制字段的新增
 
+> true()允许自动新增字段
+
+> false不允许自动新增字段，但文档可以正常写入，但无法对字段进行查询等操作。
+
+> strict文档不能写入，报错
+
+    **request**
+	PUT my_index
+	{
+	  "mappings": {
+	    "doc": {
+	      "dynamic": false,
+	      "properties": {
+	        "name": {
+	          "type": "text"
+	        },
+	        "profile": {
+	          "dynamic": true,
+	          "properties": {}
+	        },
+	        "works": {
+	          "dynamic": "strict",
+	          "properties": {
+	            "name": {
+	              "type": "text"
+	            }
+	          }
+	        }
+	      }
+	    }
+	  }
+	}
+
+### copy_to ###
+> 将该字段的值复制到目标字段，实现类似_all的作用
+
+> 不会出现在_source中，只用来搜索
+
+    PUT my_index
+	{
+	  "mappings": {
+	    "doc": {
+	      "properties": {
+	        "first_name": {
+	          "type": "text",
+	          "copy_to": "full_name" 
+	        },
+	        "last_name": {
+	          "type": "text",
+	          "copy_to": "full_name" 
+	        },
+	        "full_name": {
+	          "type": "text"
+	        }
+	      }
+	    }
+	  }
+	}
+
+	PUT my_index/doc/1
+	{
+	  "first_name": "John",
+	  "last_name": "Smith"
+	}
+	
+	GET my_index/_search
+	{
+	  "query": {
+	    "match": {
+	      "full_name": { 
+	        "query": "John Smith",
+	        "operator": "and"
+	      }
+	    }
+	  }
+	}
+
+### index ###
+控制当前字段是否索引，默认为true，即记录索引，false不记录，即不可搜索
+
+	PUT my_index
+	{
+	  "mappings": {
+	    "doc": {
+	      "properties": {
+	        "cookie": {
+	          "type": "text",
+	          "index": false
+	        }
+	      }
+	    }
+	  }
+	}
+	
+	PUT my_index/doc/1
+	{
+	  "cookie":"name=alfred"
+	}
+	
+	GET my_index/_search
+	{
+	  "query":{
+	    "match": {
+	      "cookie": "name"
+	    }
+	  }
+	}
+
+    response
+    {
+     "error"{
+         "":[
+     
+           "index":"my_index",
+           "reason":"Cannot search on field[cookies] since it is not indexed."
+            ]
+       }
+    }
     
-    
+### index_options ###  
+ index_options用于控制倒排索引记录的内容，有如下4种配置
+
+-    docs记录doc id
+-    freqs 记录doc id 和 term frequencies
+-    positions记录doc id 、term frequencies 和 term position
+-    offset记录doc id 、term frequencies、term position 和 character offsets
+  
+> text类型默认配置为positions,其他默认为docs
+
+> 记录内容越多，占用空间越大
+
+index_options设定如下所示：
+
+    PUT my_index
+    {
+      "mappings":{
+           "properties":{
+                 "cookies":{
+                             "type":"text",
+                             "index_options":"offsets"
+                           }
+              }
+         }
+    }
+
+### null_value ###
+当字段遇到null值时的处理策略，默认为null，即为空值，此时es会忽略该值。可以通过设定该值设定字段的默认值。
+
+    PUT my_index
+	{
+	  "mappings": {
+	    "my_type": {
+	      "properties": {
+	        "status_code": {
+	          "type":       "keyword",
+	          "null_value": "NULL" 
+	        }
+	      }
+	    }
+	  }
+	}
+
+### 数据类型 ###
+核心数据类型
+
+- 字符串型：text、keyword
+- 数值型：long、integer、short、byte、double、float、half_float、scaled_float
+- 日期类型：date
+- 布尔类型：boolean
+- 二进制类型：binary
+- 范围类型：integer_range、float_range、double_range、date_range
+
+复杂数据类型
+
+- 数组类型：array
+- 对象类型：object
+- 嵌套类型：nested object
+
+地理位置类型
+
+- geo_point
+- geo_shape
+
+专用类型
+
+- 记录ip地址ip
+- 实现自动补全completion
+- 记录分词数token_count
+- 记录字符串hash值murmur3
+- percolator
+- join
+
+多字段特性multi-fields
+> 允许对同一个字段采用不同的配置，比如分词，常见例子如对人名实现拼音搜索，只需要在人名中新增一个子字段为pinyin即可
+
+    {
+     "test_index":{
+           "mappings":{
+                "doc":{
+                     "properties":{
+                         "username":{
+                              "type":"text",
+                              "fields":{
+                                  "pinyin":{
+                                      "type":"text",
+                                      "anlyzer":"pinyin"
+                                   }
+                                }
+                          }
+                       }
+                   }
+              }
    
-    
+        }
+    }
+
+    GET test_index/_search
+    {
+      "query":{
+         "match":{
+              "username.pinyin":"hanhan"
+            }
+      }    
+    }
+
+### Dynamic Mapping ###
+#### es可以自动识别文档字段类型，从而降低用户使用成本，如下所示： ####
+
+    **request**
+    PUT /test_index/doc/1
+    {
+      "username":"alfred",
+      "age":1
+    }
+  
+    **response**
+    GET /test_index/_mapping
+    {
+      "test_index":{
+            "mapping":{
+                "doc":{
+                   "age":{
+                      "type":"long"
+                    },
+                    "username":{
+                      "type":"text",
+                      "fields":{
+                         "keyword":{
+                            "type":"keyword",
+                            "ignore_above":256
+                         }
+                       }
+                    }
+                }
+             }
+   
+         }
+    }
+    es自动识别age类型为long,username为text类型。
+
+#### es是依靠JSON文档的字段类型来实现自动识别字段类型，支持的类型如下 ####
+
+    JSON类型       es类型
+      null          忽略
+      boolean       boolean
+      浮点类型       float
+      整数           long
+      object         object
+      array        由第一个非null值的类型决定
+      string       匹配日期则设为date类型(默认开启),匹配为数字的话设为float或long类型(默认关闭)，设为text类型，并给附带keyword的子字段
+
+#### 日期的自动识别可以自行配置日期格式，以满足各种需求 ####
+
+- 默认是["strict_date_optional_time","yyyy/MM/dd HH:mm:ss Z||yyyy/MM/dd Z"]
+- strict_date_optional_time是ISO datetime的格式，完整格式类似下面：YYYY-MM-DDThh:mm:ssTZD(eg 1997-07-16T19:20:30+01:00)
+- dynamic_date_formats可以自定义日期类型
+- date_detection可以关闭日期自动识别的机制
+
+#### 字符串是数字时，默认不会自动识别为整型，因为字符串中出现数字是完全合理的 ####
+numeric_detection可以开启字符串中数字的自动识别，如下所示：
+
+    **request**
+    PUT my_index
+    {
+      "mappings":{
+        "my_type":{
+          "numeric_detection":true
+        }
+      }
+    }
+
+    PUT my_index/my_type/1
+    {
+      "my_float":"1.0",
+      "my_integer":"1"
+    }
+
+    GET my_index/_mapping
+
+    **response**
+    {
+      "my_index1":{
+         "mappings":{
+            "my_type":{
+              "numeric_detection":true,
+              "properties":{
+                 "my_float":{
+                    "type":"float"
+                  },
+                  "my_integer":{
+                    "type":"long"
+                  },
+               }
+            }
+          }
+
+      }
+    }
+
+## Dynamic Templates ##
+允许根据es自动识别的整数类型、字段名等来动态设定字段类型，可以实现如下效果：
+
+- 所有字符串类型都设定为keyword类型，即默认不分词。
+- 所有以message开头的字段都设定为text类型，即分词
+- 所有以long_开头的字段都设定为long类型
+- 所有自动匹配为double类型的都设定为float类型，以节省空间。
+
+## Dynamic Templates API ##
+### API如下所示： ###
+   
+    PUT test_index
+    {
+      "mappings":{
+        "doc":{
+          "dynamic_template"[//数组，可指定过个匹配规则
+            {
+              "strings":{//template的名称
+                "match_mapping_type":"string",//匹配规则
+                "mapping":{//设置mapping信息
+                  "type":"keyword"
+                }
+              }
+            }
+          ] 
+        }
+      }
+    }
+
+### 匹配规则一般有如下几个参数 ###
+
+- match_mapping_type匹配es自动识别的字段类型，如boolean,long,string等
+- match,unmatch匹配字段名
+- path_match,path_unmath匹配路径
+
+### 字符串默认使用keyword类型 ###
+es默认会为字符串设置为text类型，并增加一个keyword的子字段
+   
+    PUT test_index 
+    {
+      "mappings":{
+         "doc":{
+           "dynamic_templates":[
+             "string_as_keywords":{
+               "match_mapping_type":"string",
+               "mapping":{
+                  "type":"keyword"
+               }
+             }
+           ]
+         }
+       }
+    }
+
+### 以message开头的字段都设置为text类型 ###
+   
+    PUT test_index
+    {
+      "mappings":{
+         "doc":{
+           "dynamic_templates":[
+             "string_as_keywords":{
+               "match_mapping_type":"string",
+               "match":"message*"
+               "mapping":{
+                  "type":"text"
+               }
+             }
+           ]
+         }
+       }
+    }
+
+### 自定义Mapping的建议 ###
+自定义Mapping的操作步骤如下：
+
+- 1.写入一条文档到es的临时索引中，获取es自动生成mapping
+- 2.修改步骤1得到的mapping，自定义相关配置
+- 3.使用步骤2的mapping创建实际所需索引
+
+## 索引模版 ##
+索引模版，英文为Index Template,主要用于在新建索引时自动应用预先设定的配置，简化索引创建的操作步骤
+
+- 可以设定索引的配置和mapping
+- 可以有多个模版，根据order设置，order大的覆盖小的配置
+
+### 索引模版API ###
+索引模版API，endpoint为_template,如下所示：
+   
+    PUT _template/test_template //template名称
+    {
+      "index_patterns":["te*","bar*"],//匹配的索引名称
+      "order":0,//order顺序配置
+      "settings":{//索引的配置
+         "number_of_shards":1
+       }
+      "mappings":{
+        "doc":{
+          "_source":{
+            "enabled":false
+          },
+          "properties":{
+             "name":{
+               "type":"keyword"
+             }
+           }
+        }
+      }
+    }
+
+    PUT _template/test_template1 //template名称
+    {
+      "index_patterns":["test*"],//匹配的索引名称
+      "order":1,//order顺序配置
+      "settings":{//索引的配置
+         "number_of_shards":1
+       }
+      "mappings":{
+        "doc":{
+          "_source":{
+            "enabled":true
+          }
+        }
+      }
+    }
+
+获取与删除的API如下：
+
+- GET _template
+- GET _template/test_template
+- DELETE _template/test_template

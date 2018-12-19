@@ -1372,3 +1372,745 @@ es默认会为字符串设置为text类型，并增加一个keyword的子字段
 - GET _template
 - GET _template/test_template
 - DELETE _template/test_template
+
+# 第5章Elasticsearch 篇之Search API 介绍 #
+## Search API ##
+实现对es中存储的数据进行查询分析，endpoint为_search,如下所示：
+
+		GET  /_search
+		GET  /my_index/_search
+		GET  /my_index1,my_index2/_search
+		GET  /my_*/_search
+
+     指定索引查询，可以一次查询多个
+
+查询主要有两种形式：
+
+   URI Search
+
+     操作简便，方便通过命令行测试
+     仅包含部分查询语法
+
+   Request Body Search
+
+     es提供的完备查询语法Query DSL(Domain Specific Language)
+
+   	   GET /my_index/_search?q=user:alfred
+
+	   GET /my_index/_search
+	   {
+	     "query":{
+	        "term":{"user","alfred"}
+	     }
+	   }
+
+### URI Search ###
+通过url query参数来实现搜索，常用参数如下：
+
+	-q指定查询的语句，语法为Query String Syntax
+	-df q中不指定字段时默认查询的字段，如果不指定，es会查询所有字段
+	-sort 排序
+	-timeout 指定超时时间，默认不超时
+	-from,size用于分页
+
+	GET /my_index/_search?q=alfred&df=user&sort=age:asc&from=4size=10&timeout=1s
+	查询user字段包含alfred的文档，结果按照age升序排列。返回第5~14个文档，如果超过1s没结果，则以超时结束
+
+### URI Search-Query String Syntax ###
+**term与phrase**
+
+	-alfred way 等效于alfred OR way 
+	-"alfred way"词语查询，要求先后顺序
+泛查询
+
+	-alfred等效于在所有字段去匹配该term指定字段
+	-name:alfred
+
+**Group 分组设定，使用括号指定匹配的规则**
+
+	-(quick OR brown) ADN fox
+	-status:(active OR pending)title:(full text search)
+
+search api
+
+	GET test_search_index/_search?q=alfred
+	
+	GET test_search_index/_search?q=alfred
+	{
+	  "profile":true
+	}
+
+**布尔操作符**
+
+	-ADN(&&),OR(||),NOT(!)
+		name:(tom NOT lee)
+		注意大写，不能小写
+
+    -+-分别对应must 和 must_not
+        name:(tom +lee -alfred)
+        name:((lee && !alfred)||(tom&&lee&&!alfred))
+        +在url中会被解析为空格，要使用encode后的结果才可以，为%2B
+
+**范围查询，支持数值和日期**
+
+	区间写法，闭区间用[],开区间用{}
+	   age:[1 TO 10]意为1<=age<=10
+	   age:[1 TO 10}意为1<=age<10
+	   age:[1 TO ]意为age>=1
+	   age:[* TO 10]意为age<=10
+	算数符号写法
+	   age:>=1
+	   age:(>=1&&<=10)或者age:(+>=1 +<=10)
+
+**通配符查询**
+
+	-?代表1个字符，*代表0或多个字符
+	  name:t?m
+	  name:tom*
+	  name:t*m
+	-通配符匹配执行效率低，且占用较多内存，不建议使用
+	-如无特殊需求，不要将?/*放在最前面  
+
+**正则表达式匹配**
+
+	-name:/[mb]oat/
+
+**模糊匹配fuzzy query**
+
+	-name:roam~1
+	-匹配与roam差1个character的词，比如foam roams等
+
+**近似度查询proximity search**
+
+	-"fox quick"~5
+	-以term为单位进行差异比较，比如"quick fox" "quick brown fox"都会被匹配
+
+### Request Body Search ###
+
+将查询语句通过http request body 发送到es,主要包含如下参数：
+
+- query 符合Query DSL语法的查询语句
+- from,size
+- timeout
+- sort
+- ...
+
+符合Query DSL
+
+	Request Body Search
+	GET /my_index/_search
+	{
+	  "query":{
+	    "term":{"user":"alfred"}
+	  }
+	}
+
+##  Query DSL  ##
+基于JSON定义的查询语言，主要包含如下两种类型：
+
+- 字段类查询
+
+    如term,match,range等，只针对某一个字段进行查询
+- 复合查询
+
+    如bool查询等，包含一个或多个字段类查询或者复合查询语句
+
+### Query DSL-字段类查询 ###
+字段类查询主要包括以下两类：
+
+- 全文匹配
+
+    针对text类型的字段进行全文检索，会对查询语句先进行分词处理,如match,match_phrase等query类型
+- 单词匹配
+
+    不会对查询语句做分词处理,直接去匹配字段的倒排索引，如term，terms，range等query类型
+
+### Match Query ###
+对字段作全文检索，最基本和常用的查询类型，API示例如下：
+
+	request
+	GET test_search_index/_search
+	{
+	  "query":{
+	    "match":{//关键词
+	      "username":"alfred way"//字段名，和待查询的语句
+	    }
+	  }
+	}
+
+	response
+	{
+	  "took":14,
+	  "timed_out":false,
+	  "_shards":{
+	    "total":1,
+	    "successful":1,
+	    "skipped":0,
+	    "faild":0,
+	  },
+	  "hits":{
+	    "total":2,//匹配文档总数
+	    "max_score":1.204465,
+	    "hits":[//返回文档列表
+	      {
+	        "_index":"test_search_index",
+	        "_type":"doc",
+	        "_id":"1",
+	        "_score":1.204465,//文档相关度得分
+	        "_source":{
+	          "username":"alfred way",
+	          "job":"java engineer",
+	          "age":18,
+	          "birth":"1990-01-02",
+	          "isMarried":false
+	        }
+	      },
+	      {
+	        "_index":"test_search_index",
+	        "_type":"doc",
+	        "_id":"2",
+	        "_score":0.52354836,
+	        "_source":{
+	          "username":"alfred",
+	          "job":"senior java engineer",
+	          "age":28,
+	          "birth":"1980-05-07",
+	          "isMarried":true
+	        }
+	      }
+	    ]
+	  }
+	}
+
+#### Match Query-流程 ####
+1.对查询语句分词
+
+	"alfred way"分词为：alfred ，way
+2.倒排索引
+
+	   单词      文档ID列表
+	   alfred    1,2
+	   way       1
+3.根据username的倒排索引进行匹配算分(alfred ，way分别进行)
+
+4.汇总得分
+
+4.根据得分排序，返回匹配文档
+
+
+**通过operator参数可以控制单词间的匹配关系，可选项为or和and**
+
+	GET test_search_index/_search
+	{
+	  "query":{
+	    "match":{
+	      "username":{//字段名
+	        "query":"alfred way",//待查询的语句
+	        "operator":"and"//关键字
+	      }
+	    }
+	  }
+	}
+
+**通过minimun_should_match参数可以控制需要匹配的单词数**
+
+	GET test_search_index/_search
+	{
+	  "query":{
+	    "match":{
+	      "username":{//字段名
+	        "query":"alfred way",//待查询的语句
+	        "minimun_should_match":"2"//关键字
+	      }
+	    }
+	  }
+	}
+
+## 相关性算分 ##
+相关性算分是只文档与查询语句间的相关度，英文为relevance
+
+通过倒排索引可以获取与查询语句相匹配的文档列表，那么如何将最符合用户查询的需求文档放到前列呢？
+
+本质是一个排序问题，排序的依据是相关性算分
+
+          倒排索引
+	   单词      文档ID列表
+	   alfred    1,2
+	   way       1
+
+### 相关性算分的几个重要概念如下： ###
+- Term Frequency(TF)词频，即单词在该文档中出现的次数。词频越高，相关度越高
+- Document Frequency(DF)文档频率，即单词出现的文档数
+- Inverse Document Frequency(IDF)逆向文档频率，与文档频率相反，简单理解为1/DF.即单词出现的文档数越少，相关度越高
+- field-length Norm文档越短，相关性越高
+
+### ES目前主要有两个相关性算分模型，如下 ###
+- TF/IDF模型
+- BM25模型5.x之后的默认模型
+
+### 相关性算分-TE/IDF模型 ###
+可以通过explain参数来查看具体的计算方法，但要注意：
+
+- es的算分是按照shard进行的，即shard的分数计算是相互独立的，所以在使用explain的时候注意分片数
+- 可以通过设置索引的分片数为1来避免这个问题
+
+request
+
+	GET test_search_index/_search
+	{
+	 "explain":true,
+	 "query":{
+	   "match":{
+	     "username":"alfred way"
+	   }
+	 }
+	}
+
+request
+
+	GET test_search_index
+	{
+	 "settings":{
+	   "index":{
+	     "number_of_shards":"1"
+	   }
+	 }
+	}
+
+### Mtch Phrase Query ###
+对字段作检索，有顺序要求，API实例如下：
+
+	request
+	GET test_search_index/_search
+	{
+	  "query":{
+	    "match_phrase":{//关键词
+	      "job":"java engineer"//字段名，和待查询的字符串
+	    }
+	  }
+	}
+
+通过slop参数可以控制单词间的间隔
+
+	request
+	GET test_search_index/_search
+	{
+	  "query":{
+	    "match_phrase":{//关键词
+	      "job":{
+            "java engineer",//字段名，和待查询的字符串
+            "slop":"1"//关键词
+          }
+	    }
+	  }
+	}
+
+### Query String Query ###
+类似URI Search中的q参数查询
+
+	request
+	GET test_search_index/_search
+	{
+	  "query":{
+	    "query_string":{//关键词
+          "default_field":"username",//指明默认查询字段
+          "query":"alfred AND way"
+        }
+	    }
+	  }
+	}
+
+	request
+	GET test_search_index/_search
+	{
+	  "query":{
+	    "query_string":{//关键词
+          "fields":["username","job"],//指明默认查询字段
+          "query":"alfred OR (java AND ruby)"
+         }
+	   }
+	}
+
+	request
+	GET test_search_index/_search
+	{
+	  "query":{
+	    "simple_query_string":{//关键词
+          "query":"(job:alfred|username:alfred)(+(job:java|username:java)+(job:ruby|username"ruby))"
+        }
+	  }
+	}
+
+### Simple Query String Query ###
+- 类似Query String，但是会忽略错误的查询语法，并且仅支持部分查询语法
+- 其常用的逻辑符号如下：不能使用AND,OR ,NOT等关键词：
+
+	+代指AND
+
+	|代指OR
+	
+	-代指NOT
+
+request
+
+	GET test_search_index/_search
+	{
+	  "query":{
+	    "simple_query_string":{
+	      "query":"alfred +way",
+	      "field":["username"]
+	    }
+	  }
+	}
+
+### Term Query ###
+将查询语句作为整个单词进行查询，即不对查询语句做分词处理，如下所示:
+
+	request
+	GET test_search_index/_search
+	{
+	  "query":{
+	    "term":{//关键词
+	      "username":"alfred"
+	    }
+	  }
+	}
+
+### Terms Query ###
+一次传入多个单词进行查询，如下所示：
+
+	request
+	GET test_search_index/_search
+	{
+	  "query":{
+	    "terms":{//关键词
+	      "username":["alfred","way"]
+	    }
+	  }
+	}
+
+### Range Query ###
+**范围查询主要针对数值和日期类型，如下所示：**
+
+	GET test_search_index/_search
+	{
+	  "query":{
+	    "range":{
+	      "age":{
+	        "gte":10,
+	        "lte":20
+	      }
+	    }
+	  }
+	}
+
+比较关键词：
+
+- ge   -greater than
+- get  -greater than or equal to
+- lt   -less than
+- lte  -tess than or equal to
+
+**针对日期做查询，如下所示：**
+
+    request
+	GET test_search_index/_search
+	{
+	  "query":{
+	    "range":{
+	      "birth":{
+	        "gte":"1990-01-01"
+	      }
+	    }
+	  }
+	}
+
+    request
+	GET test_search_index/_search
+	{
+	  "query":{
+	    "range":{
+	      "birth":{
+	        "gte":"now-20y"//Date Math
+	      }
+	    }
+	  }
+	}
+
+### Range query - Date Math 
+单位主要如下几种：
+
+- y -years
+- M -months
+- w -weeks
+- d -days
+- h -hours
+- m -minutes
+- s -seconds
+
+假如now为2018-01-02 12：00：00，那么如下的计算结果实际为：
+
+	计算公式               实际结果
+	now+1h                2018-01-02 13:00:00
+	now-1h                2018-01-02 11:00:00
+	now -1h/d             2018-01-02 00:00:00
+	2016-01-01||+1M/d     2018-02-01 00:00:00
+
+### Query DSL -复合查询 ###
+复合查询是指包含字段类查询或复合查询的类型，主要包括一下几类：
+
+- constant_score query
+- bool query
+- dis_max query
+- function_score query
+- boostring query
+
+### Constant Score Query ###
+该查询将其内部的查询结果文档得分都设定为1或者boost的值
+
+    多用于结合bool查询实现自定义得分
+
+	GET test_search_index/_search
+	{
+	  "query":{
+	    "constant_score":{//关键词
+	      "filter":{//只能有一个
+	        "match":{
+	          "username":"alfred"
+	        }
+	      }
+	
+	    }
+	
+	  }
+	}
+
+### Bool Query ###
+布尔查询有一个或是多个布尔子句组成，主要包含如下4个：
+
+	filter      只过滤符合条件的文档，不计算相关性得分
+	must        文档必须符合must中的所有条件，会影响相关性得分
+	must_not    文档必须不符合must_not中的所有文档
+	should      文档可以符合should中的条件，会影响相关性得分
+
+Bool查询的API如下所示：
+
+	GET test_search_index/_search
+	{
+	  "query":{
+	    "bool":{
+	      "must":[
+	       {}
+	      ],
+	      "must_not":[
+	       {}
+	      ],
+	      "should":[
+	       {}
+	      ],
+	      "filter":[
+	       {}
+	      ]
+	    }
+	  }
+	}
+
+### Bool Query -Filter ###
+Filter查询只过滤符合条件的文档，不会进行相关性算分
+
+- es针对filter会有智能缓存，因此其执行效率很高
+- 做简单匹配查询且不考虑算分时，推荐使用filter代替query等
+
+request
+
+	GET test_search_index/_search
+	{
+	  "query":{
+	    "bool":{
+	      "filter":[
+			{//关键词
+		        "term":{
+		          "username":"alfred"//term query
+	            }
+	        }
+          ] 
+	    }
+	  }
+	}
+
+### Bool Query -Must ###
+	GET test_search_index/_search
+	{
+	  "query":{
+	    "bool":{
+	      "must":[
+			{//关键词
+		        "match":{
+		          "username":"alfred"//term query
+	            }
+	        },
+			{//关键词
+		        "match":{
+		          "job":"specialist"//term query
+	            }
+	        }
+          ] 
+	    }
+	  }
+	}
+	2个match query文档最终得分为这两个查询的得分加和
+
+### Bool Query -Must_Not ###
+	GET test_search_index/_search
+	{
+	  "query":{
+	    "bool":{
+	      "must":[
+			{//关键词
+		        "match":{
+		          "job":"java"//term query
+	            }
+	        }
+          ],
+	      "must_not":[
+			{//关键词
+		        "match":{
+		          "job":"ruby"//term query
+	            }
+	        }
+          ]
+	    }
+	  }
+	}
+	查询job中包含Java关键词但不包含ruby关键词的文档列表
+
+### Bool Query-Should ###
+Should使用分两种情况：
+
+- bool查询中只包含should，不包含must查询
+- bool查询中同时包含should和must查询
+
+**只包含should时，文档必须满足至少一个条件**
+
+- minimum_should_match可以控制满足条件的个数或者百分比
+
+request
+
+	GET test_search_index/_search
+	{
+	  "query":{
+	    "bool":{
+	     "should":[
+	       {"term":{"job":"java"}},
+	       {"term":{"job":"ruby"}},
+	       {"term":{"job":"specialist"}}
+	     ],
+	     "mininum_should_match":2//最少满足2个条件
+	    }
+	  }
+	}
+
+**同时包含should和must时，文档不必满足should中的条件，但是如果满足条件，会增加相关性得分**
+
+request
+
+	GET test_search_index/_search
+	{
+	  "query":{
+	    "bool":{
+	     "must":[
+	       {"term":{"username":"alfred"}}
+	     ],
+	     "should":[
+           "term":{"job":"ruby"}
+          ]
+	    }
+	  }
+	}
+	查询username包含alfred的文档，同时将job包含ruby的文档排在前面
+
+
+### Query Context VS Filter Context ###
+当一个查询语句位于Query或者Filter上下文时，es执行的结果会不同，对比如下：
+
+	上下文类型：Query，Filter
+
+	执行类型 
+	Query：查找与查询语句最匹配的文档，对所有文档进行相关性算分并排序
+	Filter：查找与查询语句相匹配的文档
+
+	使用方式
+	Query：query   bool中的must和should
+	Filter：bool中的filter与must_not    constant_score中的filter
+
+request
+
+	GET test_search_index/_search
+	{
+	  "query":{
+	    "bool":{
+	      "must":[
+	        {
+	          "match":{"title":"Search"}
+	        },
+	       {
+	          "match":{"content":"Elasticsearch"}
+	       }
+	      ],
+	      "filter":[
+	        {"term":{"status":"published"}},
+	        {"range":{"publish_date":{"gte":"2015-01-01"}}}
+	      ]
+	    }
+	  }
+	}
+	must下的是query上下文，会进行相关性算分
+	filter下的filter上下文，不会影响算分，只会过滤符合条件的文档
+
+### Count API ###
+获取符合条件的文档数，endpoint为_count
+
+	request
+	GET test_search_index/_count
+	{
+	  "query":{
+	    "match":{
+	      "username":"alfred"
+	    }
+	  }
+	}
+	
+	response
+	{
+	 "count":3,
+	 "_shards":{
+	  "total":1,
+	  "successful":1,
+	  "skipped":0,
+	  "failed":0
+	 }
+	}
+
+### Source Filter ###
+过滤返回结果中_source中的字段，主要有如下几种方式：
+GET test_search_index/_search?_source=username
+
+不返回_source
+test_search_index/_search
+{
+  "_source":false
+}
+
+返回部分字段
+test_search_index/_search
+{
+  "_source":["username","age"]
+} 
+
+test_search_index/_search
+{
+  "_source":{
+    "includes":"*i*",
+    "excludes":"birth"
+  }
+}
